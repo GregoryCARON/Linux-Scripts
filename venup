@@ -1,0 +1,25 @@
+#!/bin/bash
+DOWNLOAD_DIR=$(xdg-user-dir DOWNLOAD)
+function vencord {
+	echo Lancement de Vencord ...
+	sh -c "$(curl -sS https://raw.githubusercontent.com/Vendicated/VencordInstaller/main/install.sh)"
+}
+if [ -z "$1" ]
+	then
+	vencord
+	exit 1
+fi
+cd /tmp
+echo Décompession de $1 ...
+tar -xf $DOWNLOAD_DIR/$1
+echo Préparation de la MAJ ...
+mv DiscordCanary discord-canary
+zip -9 -m -q -r discord-canary.zip discord-canary
+echo Application de la MAJ ...
+cd /opt
+sudo unzip -o -qq /tmp/discord-canary.zip
+sudo chmod -R 755 /opt/discord-canary
+echo Suppression des fichiers temporaires ...
+rm /tmp/discord-canary.zip
+vencord
+echo Terminé !
