@@ -1,0 +1,20 @@
+#!/bin/bash
+
+read -s -p "Mot de passe : " password
+echo
+read -s -p "Confirmez le mot de passe : " confirm
+echo
+
+if [[ "$password" != "$confirm" ]]; then
+    echo "Les mots de passe ne correspondent pas." >&2
+    unset password confirm
+    exit 1
+fi
+
+# Hash via une variable d’environnement temporaire et nettoyage immédiat
+export PWD_TMP="$password"
+hash=$(php -r 'echo password_hash(getenv("PWD_TMP"), PASSWORD_BCRYPT), PHP_EOL;' 2>/dev/null)
+unset password confirm PWD_TMP
+
+# Affichage du hash
+echo "$hash"
