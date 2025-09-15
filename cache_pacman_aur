@@ -1,0 +1,85 @@
+#!/bin/bash
+
+declare -A cache_paths=(
+    ["Pacman"]="/var/cache/pacman/pkg"
+    ["Yay"]="$HOME/.cache/yay"
+    ["Trizen"]="$HOME/.cache/trizen"
+    ["Paru"]="$HOME/.cache/paru"
+)
+
+declare -A cache_sizes
+total_size=0
+
+sudo -v || exit 1
+
+echo -e "\nTaille des caches d'installation :"
+
+for manager in "${!cache_paths[@]}"; do
+    path="${cache_paths[$manager]}"
+    if [ -d "$path" ]; then
+        size=$(sudo du -sb "$path" 2>/dev/null | awk '{print $1}')
+        if [ "$size" -gt 0 ]; then
+            human=$(numfmt --to=iec $size)
+            cache_sizes["$manager"]=$human
+            total_size=$((total_size + size))
+            echo "$manager : $human"
+        fi
+    fi
+done
+
+echo -e "\nTaille totale : $(numfmt --to=iec $total_size)"
+
+if [ "${#cache_sizes[@]}" -eq 0 ]; then
+    echo "Aucun cache détecté."
+    exit 0
+fi
+
+echo -ne "\nQuel(s) cache(s) supprimer (${!cache_sizes[@]} Tous Aucun) : "
+read -r choix
+choix=$(echo "$choix" | tr '[:upper:]' '[:lower:]')
+
+[[ -z "$choix" || "$choix" == "aucun" ]] && { echo "Aucun cache supprimé."; exit 0; }
+
+to_clean=()
+if [[ "$choix" == *"tous"* ]]; then
+    to_clean=("${!cache_sizes[@]}")
+else
+    for name in "${!cache_sizes[@]}"; do
+        lname=$(echo "$name" | tr '[:upper:]' '[:lower:]')
+        [[ "$choix" == *"$lname"* ]] && to_clean+=("$name")
+    done
+fi
+
+echo
+for manager in "${to_clean[@]}"; do
+    case "$manager" in
+        "Pacman")
+            echo "Nettoyage Pacman..."
+            sudo pacman -Scc
+            ;;
+        "Yay")
+            echo "Nettoyage Yay..."
+            yay -Scc
+            ;;
+        "Trizen")
+            echo "Nettoyage Trizen..."
+            trizen -Scc
+            ;;
+        "Paru")
+            echo "Nettoyage Paru..."
+            paru -Scc
+
+            echo -ne "\nSouhaitez-vous également vider le contenu de ~/.cache/paru/clone ? (o/N) : "
+            read -r confirm_paru_clone
+            if [[ "$confirm_paru_clone" =~ ^[Oo]$ ]]; then
+                echo "Vidage du contenu de ~/.cache/paru/clone..."
+                find "$HOME/.cache/paru/clone/" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+                echo "Contenu vidé."
+            else
+                echo "Contenu de clone conservé."
+            fi
+            ;;
+    esac
+done
+
+echo -e "\nLe(s) cache(s) ${to_clean[*]} ont été nettoyés (si confirmé manuellement)."
