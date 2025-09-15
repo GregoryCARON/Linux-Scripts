@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+
+SCRIPT_DIR="$(dirname "$(realpath "$0")")"
+DATA_DIR="$SCRIPT_DIR/ssh"
+CONFIG_CONNEXIONS="$DATA_DIR/connexions.conf"
+
+mkdir -p "$DATA_DIR"
+
+# Couleurs
+BLEU="\e[34m"; VERT="\e[32m"; ROUGE="\e[31m"; JAUNE="\e[33m"; RESET="\e[0m"
+
+usage() {
+    echo -e "${VERT}Utilisation :$RESET clefs-ssh [commande] [options]\n"
+    echo -e "${BLEU}Commandes disponibles :$RESET"
+    echo -e "  ${JAUNE}lister${RESET}                → Liste les clefs SSH"
+    echo -e "  ${JAUNE}envoyer <clef> <cible>${RESET} → Envoie une clef vers une connexion"
+    echo -e "  ${JAUNE}connexions${RESET}            → Liste les connexions sauvegardées"
+    echo -e "  ${JAUNE}ajouter-connexion <nom> <user@hote:port>${RESET} → Ajoute une connexion"
+    echo -e "  ${JAUNE}supprimer-connexion <nom>${RESET}               → Supprime une connexion"
+}
+
+lister() {
+    echo -e "${BLEU}NOM\tALGO\tBITS\tEMPREINTE(SHA256)\tCOMMENTAIRE${RESET}"
+    for clef in "$HOME/.ssh"/*.pub; do
+        [[ -e "$clef" ]] || continue
+        ssh-keygen -lf "$clef" | while read -r bits fingerprint comment; do
+            algo=$(ssh-keygen -lf "$clef" | awk '{print $4}')
+            nom=$(basename "$clef")
+            echo -e "${VERT}$nom${RESET}\t$algo\t$bits\t$fingerprint\t$comment"
+        done
+    done
+}
+
+ajouter_connexion() {
+    nom="$1"
+    cible="$2"
+    [[ -z "$nom" || -z "$cible" ]] && { echo -e "${ROUGE}Erreur : nom ou cible manquant${RESET}"; exit 1; }
+    echo "$nom $cible" >> "$CONFIG_CONNEXIONS"
+    echo -e "${VERT}Connexion ajoutée : $nom → $cible${RESET}"
+}
+
+supprimer_connexion() {
+    nom="$1"
+    [[ -z "$nom" ]] && { echo -e "${ROUGE}Erreur : nom manquant${RESET}"; exit 1; }
+    grep -v "^$nom " "$CONFIG_CONNEXIONS" > "$CONFIG_CONNEXIONS.tmp" && mv "$CONFIG_CONNEXIONS.tmp" "$CONFIG_CONNEXIONS"
+    echo -e "${VERT}Connexion supprimée : $nom${RESET}"
+}
+
+connexions() {
+    echo -e "${BLEU}Connexions sauvegardées :${RESET}"
+    if [[ -f "$CONFIG_CONNEXIONS" ]]; then
+        column -t "$CONFIG_CONNEXIONS"
+    else
+        echo -e "${JAUNE}Aucune connexion définie${RESET}"
+    fi
+}
+
+envoyer() {
+    clef="$1"
+    nom="$2"
+    [[ -z "$clef" || -z "$nom" ]] && { echo -e "${ROUGE}Erreur : clef ou connexion manquante${RESET}"; exit 1; }
+
+    cible=$(grep "^$nom " "$CONFIG_CONNEXIONS" | awk '{print $2}')
+    [[ -z "$cible" ]] && { echo -e "${ROUGE}Connexion inconnue : $nom${RESET}"; exit 1; }
+
+    user=$(echo "$cible" | cut -d@ -f1)
+    hostport=$(echo "$cible" | cut -d@ -f2)
+    host=$(echo "$hostport" | cut -d: -f1)
+    port=$(echo "$hostport" | cut -s -d: -f2)
+
+    if [[ -n "$port" ]]; then
+        ssh-copy-id -i "$HOME/.ssh/$clef" -p "$port" "$user@$host"
+    else
+        ssh-copy-id -i "$HOME/.ssh/$clef" "$user@$host"
+    fi
+}
+
+# Dispatch
+cmd="$1"; shift || true
+case "$cmd" in
+    lister) lister ;;
+    envoyer) envoyer "$@" ;;
+    connexions) connexions ;;
+    ajouter-connexion) ajouter_connexion "$@" ;;
+    supprimer-connexion) supprimer_connexion "$@" ;;
+    -h|--help|"") usage ;;
+    *) echo -e "${ROUGE}Commande inconnue : $cmd${RESET}"; usage; exit 1 ;;
+esac
