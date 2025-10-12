@@ -1,0 +1,5 @@
+#!/bin/bash
+
+sudo rm -rf /var/cache/pacman/pkg/*
+sudo pacman -Syy --noconfirm
+sudo pacman -Qnq | sudo pacman -S --overwrite='*' --noconfirm -

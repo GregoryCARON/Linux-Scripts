@@ -21,3 +21,7 @@ venup is a script that makes it easy to update Discord and Vencord on ArchLinux.
 ### usage
 
 `venup discord-canary-0.0.755.tar.gz`
+
+## repair-install
+
+If your ArchLinux becomes unstable, a repair installation may be necessary. This script reinstalls only the official packages installed on your system. No configuration will be altered; only the binaries will be reinstalled.
